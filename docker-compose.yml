@@ -1,0 +1,20 @@
+services:
+  app:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RAG_OLLAMA_BASE_URL: http://host.docker.internal:11434
+      RAG_CORS_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
+    command: ["python", "-m", "rag_service.docker_entrypoint"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./raw_docs:/app/raw_docs
+      - ./processed_md:/app/processed_md
+      - ./logs:/app/logs
+      - ./chroma_db:/app/chroma_db
+      - ./rag_chunks_realistic.jsonl:/app/rag_chunks_realistic.jsonl
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

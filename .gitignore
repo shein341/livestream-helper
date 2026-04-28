@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local secrets / IDE permissions
+.env
+.claude/settings.local.json
+
+# Docker/local runtime
+.docker-build/
+
+# Runtime / generated artifacts
+chroma_db/
+rag_chunks*.jsonl
+!rag_chunks_realistic.jsonl
+logs/

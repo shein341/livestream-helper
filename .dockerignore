@@ -1,0 +1,10 @@
+.env
+.claude/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+logs/
+chroma_db/
+.git/
+.gitignore
+PROJECT_PROGRESS.md
