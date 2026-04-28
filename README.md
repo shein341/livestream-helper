@@ -16,7 +16,6 @@ https://github.com/shein341/livestream-helper
 请下载 https://github.com/shein341/livestream-helper，并按照 skills/install-skill/SKILL.md 来安装。
 ```
 
-这个 Skill 不替代下面的正常安装流程，只是让 AI 代理先做环境检查、缓存复用、`.env` 配置校验和启动验证，避免重复下载或误拉不需要的模型。
 
 ## 本地运行方式
 
