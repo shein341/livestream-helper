@@ -7,7 +7,7 @@ description: Use when installing, configuring, or verifying shein341/livestream-
 
 ## Overview
 
-Install `shein341/livestream-helper` by checking the user's machine first, reusing what already exists, then following the normal README startup path. Do not turn installation into a blind `docker build` or `pip install` run.
+Install `shein341/livestream-helper` by detecting the local environment, reporting missing dependencies, and performing only the necessary setup steps. Works on Windows (PowerShell) and macOS/Linux (bash/zsh).
 
 ## Core Rule
 
@@ -15,99 +15,111 @@ Always preflight before installing. Report what is already present, what is miss
 
 Never write real API keys into tracked files, commit keys, or echo keys in logs. Use `.env` only as a local untracked file and ask the user to paste their own key there.
 
-## Workflow
+## Environment Detection
 
-1. Clone or open the project.
-   - If the repo is absent, clone `https://github.com/shein341/livestream-helper`.
-   - If the repo already exists, inspect it in place and do not overwrite user changes.
+Run this detection once at the start:
 
-2. Read the install surface.
-   - Read `README.md`, `.env.example`, `run.ps1`, `run.sh`, `docker-compose.yml`, `Dockerfile`, and `requirements.txt`.
-   - Confirm whether `run.ps1`/`run.sh` only pull the query rewrite model when `RAG_QUERY_REWRITE_PROVIDER=ollama`.
-   - If scripts would pull `deepseek-v4-flash` through Ollama, stop and fix or warn before running them.
+```bash
+# Detect OS and shell
+IS_WINDOWS=false; IS_MAC=false; IS_LINUX=false
+case "$(uname -s)" in
+  CYGWIN*|MINGW*|MSYS*|Windows*) IS_WINDOWS=true ;;
+  Darwin*)                        IS_MAC=true ;;
+  *)                              IS_LINUX=true ;;
+esac
+echo "OS: $(uname -s), Windows=$IS_WINDOWS, Mac=$IS_MAC, Linux=$IS_LINUX"
+```
 
-3. Check local prerequisites and cache before installing:
+## Step 1 — Check Prerequisites
 
-   Windows PowerShell:
-   ```powershell
-   git --version
-   docker --version
-   docker compose version
-   docker info
-   ollama --version
-   Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec 10
-   ollama list
-   python --version
-   docker images
-   docker builder du
-   ```
+Run all checks regardless of OS. Report each one individually.
 
-   macOS/Linux shell:
-   ```bash
-   git --version
-   docker --version
-   docker compose version
-   docker info
-   ollama --version
-   curl -fsS http://127.0.0.1:11434/api/tags
-   ollama list
-   python --version
-   docker images
-   docker builder du
-   ```
+### Docker
 
-4. Decide what to install.
-   - Install Docker Desktop only if Docker or Compose is missing or not running.
-   - Install Ollama only if missing.
-   - Start Ollama if installed but not reachable at `127.0.0.1:11434`.
-   - Pull only missing Ollama models.
-   - Required default model: `bge-m3:latest`.
-   - Also pull `qwen3.5:4b` only when using local Ollama query rewrite.
-   - Do not pull `deepseek-v4-flash` with Ollama; it is an OpenAI-compatible API model.
+```bash
+docker --version
+docker compose version
+docker info >/dev/null 2>&1 && echo "Docker: running" || echo "Docker: not running or not installed"
+```
 
-5. Prepare `.env`.
-   - If `.env` is absent, copy `.env.example` to `.env`.
-   - Ask the user to open `.env` and enter their own API key values.
-   - For DeepSeek, use:
+**If missing or not running:** Install Docker Desktop (Windows/macOS) or Docker Engine (Linux). Do not proceed until Docker is working.
 
-   ```env
-   RAG_ANSWER_BASE_URL=https://api.deepseek.com
-   RAG_ANSWER_MODEL=deepseek-v4-flash
-   RAG_ANSWER_API_KEY=your_deepseek_key_here
-   RAG_ANSWER_REASONING_SPLIT=false
-   RAG_ANSWER_THINKING=disabled
+### Ollama
 
-   RAG_QUERY_REWRITE_PROVIDER=openai
-   RAG_QUERY_REWRITE_BASE_URL=https://api.deepseek.com
-   RAG_QUERY_REWRITE_API_KEY=your_deepseek_key_here
-   RAG_QUERY_REWRITE_MODEL=deepseek-v4-flash
-   RAG_QUERY_REWRITE_THINKING=disabled
-   ```
+```bash
+ollama --version
+curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && echo "Ollama: reachable" || echo "Ollama: not reachable"
+```
 
-6. Start normally.
-   - Windows: `.\run.ps1`
-   - macOS/Linux: `chmod +x ./run.sh && ./run.sh`
-   - Reuse `--no-build` / `-NoBuild` only after a successful first build.
+**If missing:** Install Ollama from https://ollama.com
+**If not reachable:** Run `ollama serve` to start it.
 
-7. Verify.
-   - Check `http://localhost:8000/health`.
-   - Check `http://localhost:8000/swagger`.
-   - Run a real `/chat` request after the app starts.
-   - Run tests with `python -m pytest -q` only if local Python dependencies are installed; otherwise run the equivalent inside Docker.
+## Step 2 — Check Required Models
 
-## Slow Install Signals
+```bash
+ollama list
+```
 
-`FlagEmbedding` depends on `torch`, `transformers`, and related ML packages. Docker builds may download large wheels, especially if pip resolves a GPU-enabled Torch build. Before changing dependencies, report the expected download size and whether the current Docker cache already has them.
+| Model | Required | Condition |
+|---|---|---|
+| `bge-m3:latest` | Yes | Always needed for embedding |
+| `qwen3.5:4b` | Conditional | Only if `RAG_QUERY_REWRITE_PROVIDER=ollama` |
 
-On Windows with Python 3.13, local `pip install -r requirements.txt` may fail because `chroma-hnswlib` or `tokenizers` falls back to native compilation. Prefer Docker or Python 3.11 unless the user wants local Python setup.
+**If `bge-m3:latest` is missing:** Run `ollama pull bge-m3:latest`
+**If `qwen3.5:4b` is missing and `RAG_QUERY_REWRITE_PROVIDER=ollama`:** Run `ollama pull qwen3.5:4b`
+
+Do NOT pull `deepseek-v4-flash` with Ollama — it is an OpenAI-compatible API model, not an Ollama model.
+
+## Step 3 — Prepare Environment File
+
+```bash
+if [ ! -f .env ]; then
+  cp .env.example .env
+  echo ".env created from .env.example — open it and fill in your API keys"
+else
+  echo ".env already exists"
+fi
+```
+
+Ask the user to open `.env` and fill in at minimum:
+
+```env
+RAG_ANSWER_API_KEY=your_api_key_here
+RAG_QUERY_REWRITE_API_KEY=your_api_key_here
+```
+
+## Step 4 — Build and Start
+
+```bash
+if $IS_WINDOWS; then
+  .\run.ps1
+else
+  chmod +x ./run.sh && ./run.sh
+fi
+```
+
+Use `--no-build` / `-NoBuild` flag on subsequent runs to reuse the Docker image layer cache.
+
+## Step 5 — Verify
+
+```bash
+curl -s http://localhost:8000/health && echo "Health OK"
+curl -s http://localhost:8000/swagger >/dev/null && echo "Swagger UI accessible"
+```
+
+If health check fails, check logs:
+
+```bash
+docker compose logs -f
+```
 
 ## Completion Report
 
-End with:
+End every run with:
 
-- installed/reused tools
-- models already present or pulled
-- whether `.env` was prepared without exposing keys
+- tools found / installed
+- models found / pulled (and why)
+- whether `.env` was prepared
 - startup URL
-- verification commands and results
-- any README or script gaps found
+- verification results
+- any steps that were skipped and why
