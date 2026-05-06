@@ -145,7 +145,7 @@ Reranker 能显著降低误召回风险，但它的耗时和候选片段数近�
 
 上面的关键延迟数据汇总如下：
 
-![RAG 延迟权衡图](docs/assets/latency-tradeoff.svg)
+![RAG 延迟权衡图](docs/assets/latency-tradeoff.png)
 
 命中质量没有明显下降：
 
